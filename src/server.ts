@@ -35,9 +35,10 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
-    // const mcpConnection = await this.mcp.connect(
-    //   "https://path-to-mcp-server/sse"
-    // );
+    // Connect to your custom MCP server
+    const mcpConnection = await this.mcp.connect(
+      "https://remote-mcp-server.rafayexalter.workers.dev"
+    );
 
     // Collect all tools, including MCP tools
     const allTools = {
@@ -72,7 +73,7 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
             onFinish(
               args as Parameters<StreamTextOnFinishCallback<ToolSet>>[0]
             );
-            // await this.mcp.closeConnection(mcpConnection.id);
+            await this.mcp.closeConnection(mcpConnection.id);
           },
           onError: (error) => {
             console.error("Error while streaming:", error);
