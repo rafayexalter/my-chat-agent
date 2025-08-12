@@ -9,6 +9,23 @@ import type { Chat } from "./server";
 import { getCurrentAgent } from "agents";
 import { unstable_scheduleSchema } from "agents/schedule";
 
+// Type definition for the user data from JSONPlaceholder API
+interface UserData {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  website: string;
+  company: {
+    name: string;
+  };
+  address: {
+    street: string;
+    city: string;
+    zipcode: string;
+  };
+}
+
 /**
  * Weather information tool that requires human confirmation
  * When invoked, this will present a confirmation dialog to the user
@@ -110,6 +127,48 @@ const cancelScheduledTask = tool({
 });
 
 /**
+ * Tool to get random user data from a public API
+ * This executes automatically without requiring human confirmation
+ */
+const getRandomUser = tool({
+  description: "Get random user information from a public API",
+  parameters: z.object({
+    userId: z
+      .number()
+      .optional()
+      .describe(
+        "Optional user ID (1-10). If not provided, returns a random user"
+      ),
+  }),
+  execute: async ({ userId }) => {
+    try {
+      // Use JSONPlaceholder API - a free testing API
+      const id = userId || Math.floor(Math.random() * 10) + 1;
+      const response = await fetch(
+        `https://jsonplaceholder.typicode.com/users/${id}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const user = (await response.json()) as UserData;
+
+      return `User Information:
+- Name: ${user.name}
+- Email: ${user.email}
+- Phone: ${user.phone}
+- Website: ${user.website}
+- Company: ${user.company.name}
+- Address: ${user.address.street}, ${user.address.city}, ${user.address.zipcode}`;
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      return `Error fetching user data: ${error}`;
+    }
+  },
+});
+
+/**
  * Export all available tools
  * These will be provided to the AI model to describe available capabilities
  */
@@ -119,6 +178,7 @@ export const tools = {
   scheduleTask,
   getScheduledTasks,
   cancelScheduledTask,
+  getRandomUser,
 };
 
 /**

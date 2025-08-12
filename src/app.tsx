@@ -38,7 +38,45 @@ export default function Chat() {
   });
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
+  const [shopContext, setShopContext] = useState<{shop?: string, user?: string} | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Handle communication with parent Shopify app
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Only accept messages from trusted origins
+      if (!event.origin.includes('myshopify.com') && !event.origin.includes('localhost')) {
+        return;
+      }
+      
+      if (event.data.type === 'shop-context') {
+        console.log('🛍️ Received shop context:', event.data);
+        setShopContext({
+          shop: event.data.shop,
+          user: event.data.user
+        });
+        
+        // Send back to Shopify app for saving
+        window.parent.postMessage({
+          type: 'save-message',
+          message: 'Connected to AI agent',
+          response: `AI agent loaded for ${event.data.shop}`,
+          timestamp: new Date().toISOString()
+        }, event.origin);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    
+    // Request shop context from parent
+    window.parent.postMessage({
+      type: 'get-shop-info'
+    }, '*');
+    
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -91,6 +129,30 @@ export default function Chat() {
     agentMessages.length > 0 && scrollToBottom();
   }, [agentMessages, scrollToBottom]);
 
+  // Send completed messages to Shopify app for saving
+  useEffect(() => {
+    if (agentMessages.length >= 2) {
+      const lastMessage = agentMessages[agentMessages.length - 1];
+      const secondLastMessage = agentMessages[agentMessages.length - 2];
+      
+      // If we have a user message followed by an assistant response
+      if (secondLastMessage.role === 'user' && lastMessage.role === 'assistant') {
+        const userText = secondLastMessage.parts?.find(p => p.type === 'text')?.text || '';
+        const assistantText = lastMessage.parts?.find(p => p.type === 'text')?.text || '';
+        
+        if (userText && assistantText && shopContext?.shop) {
+          window.parent.postMessage({
+            type: 'save-message',
+            message: userText,
+            response: assistantText,
+            timestamp: new Date().toISOString(),
+            shop: shopContext.shop
+          }, '*');
+        }
+      }
+    }
+  }, [agentMessages, shopContext]);
+
   const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
     m.parts?.some(
       (part) =>
@@ -131,6 +193,11 @@ export default function Chat() {
 
           <div className="flex-1">
             <h2 className="font-semibold text-base">AI Chat Agent</h2>
+            {shopContext?.shop && (
+              <p className="text-xs text-muted-foreground">
+                Connected to: {shopContext.shop}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-2 mr-2">
